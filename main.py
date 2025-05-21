@@ -3,6 +3,12 @@ import serial
 import time
 import logging
 import serial.tools.list_ports
+import threading
+import sys
+from pystray import Icon, Menu, MenuItem
+from PIL import Image
+
+ICON_PATH = "smart_charger.png"
 
 logging.basicConfig(
     filename='app.log',
@@ -38,7 +44,7 @@ else:
 
 
 # sends command to esp8266
-def send_command(cmd):
+def send_command(cmd,bat):
     logging.info(f"{bat[0]}% status : {"charging" if bat[1] else "not charging"}")
     ser.write((cmd + '\n').encode())
     time.sleep(0.1)
@@ -52,13 +58,30 @@ def get_battery_percent():
     battery = psutil.sensors_battery()
     return [battery.percent,battery.power_plugged]
 
-if __name__ == '__main__':
-    print("app started sucessfully")
+
+def exit_app(icon, item):
+    icon.stop()
+    sys.exit()
+
+def setup_tray_icon():
+    image = Image.open(ICON_PATH)
+    menu = Menu(MenuItem('Exit', exit_app))
+    icon = Icon("BatteryMonitor", image, "Battery Monitor", menu)
+    return icon
+
+def monitor():
     while True:
         bat = get_battery_percent()
         if bat[0]>90 and bat[1]:
-            send_command("off")
+            send_command("off",bat)
         elif bat[0]<20 and bat[1] == False:
-            send_command("on")
+            send_command("on",bat)
         time.sleep(1)
+if __name__ == '__main__':
+    t = threading.Thread(target=monitor, daemon=True)
+    t.start()
+
+    tray_icon = setup_tray_icon()
+    tray_icon.run()
+    
 
